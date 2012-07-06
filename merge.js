@@ -28,10 +28,10 @@ config.readStdinConfig(function(err, C) {
   var outputiso = path.join(C.workdir, 'output.iso');
 
   $.waterfall([
-    // make the work directory:
+    // make the work directory
     $.apply(_.makeNewDir, C.workdir),
 
-    // extract the ISO:
+    // extract the ISO
     $.apply(_.lofiadm, { action: 'add', file: C.inputiso }),
     function(dev, next) {
       isodev = dev;
@@ -53,7 +53,7 @@ config.readStdinConfig(function(err, C) {
       _.lofiadm({ action: 'remove', device: isodev }, next);
     },
 
-    // mount the boot_archive:
+    // mount the boot_archive
     $.apply(_.lofiadm, { action: 'add', file: bootarchive }),
     function(dev, next) {
       badev = dev;
@@ -95,8 +95,10 @@ config.readStdinConfig(function(err, C) {
         options: [ 'rw', 'nologging' ] }, next);
     },
 
-    // XXX MERGE FILES!
+    // merge files
+    $.apply(mergeFiles, rootdir, C.mergefiles),
 
+    // unmount /usr
     $.apply(_.umount, usrdir),
     function(next) {
       _.fsck(usrdev, next);
@@ -105,7 +107,11 @@ config.readStdinConfig(function(err, C) {
       _.lofiadm({ action: 'remove', device: usrdev }, next);
     },
     $.apply(_.lofiadm, { action: 'compress', file: tmpusrlgz }),
+
+    // put usr.lgz back into the boot_archive
     $.apply(_.mv, { from: tmpusrlgz, to: usrlgz }),
+
+    // unmount the boot_archive
     $.apply(_.umount, rootdir),
     function(next) {
       _.fsck(badev, next);
@@ -115,6 +121,7 @@ config.readStdinConfig(function(err, C) {
     },
     $.apply(fs.rmdir, rootdir),
 
+    // repack the iso
     $.apply(_.mkisofs, { isofile: outputiso, srcdir: isounpackdir + '/' })
   ],
   function(err) {
@@ -127,3 +134,23 @@ config.readStdinConfig(function(err, C) {
     }
   });
 });
+
+function mergeFiles(rootdir, files, callback)
+{
+  log(' * #yellow[merging files...]');
+  $.forEachSeries(Object.keys(files).sort(), function(file, next) {
+    var realfile = path.join(rootdir, file);
+    $.series([
+      $.apply(_.cp, { to: realfile, from: files[file].src }),
+      $.apply(_.chown, { file: realfile, owner: files[file].owner,
+        group: files[file].group }),
+      $.apply(_.chmod, { file: realfile, perms: files[file].perms })
+    ], function(err) {
+      next(err);
+    });
+  },
+  function(err) {
+    log(' * #yellow[...done merging files]');
+    callback(err);
+  });
+}
