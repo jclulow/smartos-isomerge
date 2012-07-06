@@ -38,7 +38,8 @@ config.readStdinConfig(function(err, C) {
       _.fstyp(isodev, next);
     },
     function(typ, next) {
-      assert.equal(typ, 'hsfs', 'expected an iso');
+      if (typ !== 'hsfs')
+        return next(new Error('expected an iso, got fstyp ' + typ));
       _.makeNewDir(isodir, next);
     },
     function(next) {
@@ -59,7 +60,8 @@ config.readStdinConfig(function(err, C) {
       _.fstyp(badev, next);
     },
     function(typ, next) {
-      assert.equal(typ, 'ufs', 'expected a ufs boot_archive');
+      if (typ !== 'ufs')
+        return next(new Error('expected a ufs boot_archive, got fstyp ' + typ));
       _.makeNewDir(rootdir, next);
     },
     function(next) {
@@ -81,7 +83,8 @@ config.readStdinConfig(function(err, C) {
       _.fstyp(usrdev, next);
     },
     function(typ, next) {
-      assert.equal(typ, 'ufs', 'expected a ufs usr.lgz');
+      if (typ !== 'ufs')
+        return next(new Error('expected a ufs usr.lgz, got fstyp ' + typ));
       next();
     },
     function(next) {
@@ -115,7 +118,12 @@ config.readStdinConfig(function(err, C) {
     $.apply(_.mkisofs, { isofile: outputiso, srcdir: isounpackdir + '/' })
   ],
   function(err) {
-    _.stopOnError(err);
-    log(' * #green[done]');
+    if (err) {
+      log(' ! #red[fail]: ' + err.message);
+      process.exit(1);
+    } else {
+      log(' * #green[done]');
+      process.exit(0);
+    }
   });
 });
